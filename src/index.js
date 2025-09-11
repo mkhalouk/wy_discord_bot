@@ -1,5 +1,5 @@
 const client = require('./bot');
-const { startRetryInterval } = require('./utils/channelManager');
+const { startRetryInterval, startPolling } = require('./utils/channelManager');
 require('dotenv').config();
 
 const token = process.env.DISCORD_TOKEN || require('../config.json').token;
@@ -15,6 +15,9 @@ client.once('ready', () => {
 
   // Start retry interval for rate-limited channel renames
   startRetryInterval(client);
+
+  // Start polling for channel renames
+  startPolling(client);
 
   // Start minimal express server for UptimeRobot pings
   const express = require('express');

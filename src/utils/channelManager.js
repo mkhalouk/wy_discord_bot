@@ -88,9 +88,23 @@ function setOriginalName(channelId, name) {
     originalNames.set(channelId, name);
 }
 
+// ---------------- Polling ----------------
+function startPolling(client, interval = 5000) {
+    setInterval(() => {
+        client.guilds.cache.forEach(guild => {
+            guild.channels.cache
+                .filter(c => c.type === ChannelType.GuildVoice)
+                .forEach(channel => {
+                    updateChannelName(channel);
+                });
+        });
+    }, interval);
+}
+
 // ---------------- Exports ----------------
 module.exports = {
     updateChannelName,
     setOriginalName,
-    startRetryInterval
+    startRetryInterval,
+    startPolling
 };
