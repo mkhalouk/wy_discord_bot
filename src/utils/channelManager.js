@@ -26,15 +26,14 @@ async function safeSetName(channel, name) {
 async function updateChannelName(channel) {
     if (!channel || channel.type !== ChannelType.GuildVoice) return;
 
-    // Remember original name
+    // Remember original name (in case you still want it for fallback)
     if (!originalNames.has(channel.id)) {
         originalNames.set(channel.id, channel.name);
     }
-    const baseName = originalNames.get(channel.id);
 
-    // Empty channel then reset
+    // Empty channel then Vibin
     if (channel.members.size === 0) {
-        await safeSetName(channel, baseName);
+        await safeSetName(channel, "Vibin");
         return;
     }
 
@@ -47,7 +46,7 @@ async function updateChannelName(channel) {
         }
     });
 
-    // Nobody playing -> "Vibin"
+    // Nobody playing then Vibin
     if (Object.keys(gameCounts).length === 0) {
         await safeSetName(channel, "Vibin");
         return;
@@ -56,11 +55,17 @@ async function updateChannelName(channel) {
     // Find dominant game
     const sortedGames = Object.entries(gameCounts).sort((a, b) => b[1] - a[1]);
     const [topGame, topCount] = sortedGames[0];
-    const isTie = sortedGames.filter(([_, count]) => count === topCount).length > 1;
 
-    if (isTie) {
-        await safeSetName(channel, baseName);
+    // Check if tie
+    const tiedGames = sortedGames.filter(([_, count]) => count === topCount).map(([game]) => game);
+
+    if (tiedGames.length > 1) {
+        // Pick random game from tied games
+        const randomGame = tiedGames[Math.floor(Math.random() * tiedGames.length)];
+        const newName = randomGame.length > 90 ? randomGame.slice(0, 90) : randomGame;
+        await safeSetName(channel, newName);
     } else {
+        // Clear winner
         const newName = topGame.length > 90 ? topGame.slice(0, 90) : topGame;
         await safeSetName(channel, newName);
     }
