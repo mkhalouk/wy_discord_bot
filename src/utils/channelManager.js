@@ -1,12 +1,13 @@
 const { ChannelType } = require('discord.js');
 const originalNames = new Map();
 const retryAfter = new Map();
+const idleNames = process.env.IDLE_NAMES ? process.env.IDLE_NAMES.split(",").map(name => name.trim()) : ["Vibin"];
 
-// ---------------- Helper ----------------
+// ---------------- Helpers ----------------
 async function safeSetName(channel, name) {
     if (!channel || channel.type !== ChannelType.GuildVoice) return;
 
-    if (channel.name === name) return; // Already correct
+    if (channel.name === name) return;
 
     try {
         await channel.setName(name);
@@ -22,18 +23,22 @@ async function safeSetName(channel, name) {
     }
 }
 
+function getRandomIdleName() {
+    return idleNames[Math.floor(Math.random() * idleNames.length)];
+}
+
 // ---------------- Main function ----------------
 async function updateChannelName(channel) {
     if (!channel || channel.type !== ChannelType.GuildVoice) return;
 
-    // Remember original name (in case you still want it for fallback)
+    // Save original name
     if (!originalNames.has(channel.id)) {
         originalNames.set(channel.id, channel.name);
     }
 
-    // Empty channel then Vibin
+    // Empty channel then random idle name
     if (channel.members.size === 0) {
-        await safeSetName(channel, "Vibin");
+        await safeSetName(channel, getRandomIdleName());
         return;
     }
 
@@ -46,9 +51,9 @@ async function updateChannelName(channel) {
         }
     });
 
-    // Nobody playing then Vibin
+    // Nobody playing then random idle name
     if (Object.keys(gameCounts).length === 0) {
-        await safeSetName(channel, "Vibin");
+        await safeSetName(channel, getRandomIdleName());
         return;
     }
 
