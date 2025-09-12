@@ -1,10 +1,8 @@
 const { ChannelType } = require('discord.js');
 const originalNames = new Map();
 const retryAfter = new Map();
-const lastAppliedNames = new Map();
-const idleNames = process.env.IDLE_NAMES ? process.env.IDLE_NAMES.split(",").map(name => name.trim()) : ["Vibin"];
 
-// ---------------- Helpers ----------------
+// ---------------- Helper ----------------
 async function safeSetName(channel, name) {
     if (!channel || channel.type !== ChannelType.GuildVoice) return;
 
@@ -12,7 +10,6 @@ async function safeSetName(channel, name) {
 
     try {
         await channel.setName(name);
-        lastAppliedNames.set(channel.id, name);
     } catch (err) {
         if (err.code === 429) { // Rate limit
             console.warn(`Rate limit hit for channel ${channel.name}, will retry in 10 min`);
@@ -25,47 +22,33 @@ async function safeSetName(channel, name) {
     }
 }
 
-function getRandomIdleName(channelId) {
-    let newName;
-    do {
-        newName = idleNames[Math.floor(Math.random() * idleNames.length)];
-    } while (lastAppliedNames.get(channelId) === newName && idleNames.length > 1);
-    return newName;
-}
-
 // ---------------- Main function ----------------
 async function updateChannelName(channel) {
     if (!channel || channel.type !== ChannelType.GuildVoice) return;
 
-    // Save original name
+    // Remember original name
     if (!originalNames.has(channel.id)) {
         originalNames.set(channel.id, channel.name);
     }
 
-    // Empty channel then random idle name
+    // Empty channel then Vibin
     if (channel.members.size === 0) {
-        const newName = getRandomIdleName(channel.id);
-        if (lastAppliedNames.get(channel.id) !== newName) {
-            await safeSetName(channel, newName);
-        }
+        await safeSetName(channel, "Vibin");
         return;
     }
 
     // Count games
     const gameCounts = {};
     channel.members.forEach(member => {
-        const activity = member.presence?.activities.find(a => a.type === 0);
+        const activity = member.presence?.activities.find(a => a.type === 0); // Playing
         if (activity) {
             gameCounts[activity.name] = (gameCounts[activity.name] || 0) + 1;
         }
     });
 
-    // Nobody playing then random idle name
+    // Nobody playing then Vibin
     if (Object.keys(gameCounts).length === 0) {
-        const newName = getRandomIdleName(channel.id);
-        if (lastAppliedNames.get(channel.id) !== newName) {
-            await safeSetName(channel, newName);
-        }
+        await safeSetName(channel, "Vibin");
         return;
     }
 
@@ -73,15 +56,18 @@ async function updateChannelName(channel) {
     const sortedGames = Object.entries(gameCounts).sort((a, b) => b[1] - a[1]);
     const [topGame, topCount] = sortedGames[0];
 
+    // Check if tie
     const tiedGames = sortedGames.filter(([_, count]) => count === topCount).map(([game]) => game);
-    const chosenGame = tiedGames.length > 1
-        ? tiedGames[Math.floor(Math.random() * tiedGames.length)]
-        : topGame;
 
-    const finalName = chosenGame.length > 90 ? chosenGame.slice(0, 90) : chosenGame;
-
-    if (lastAppliedNames.get(channel.id) !== finalName) {
-        await safeSetName(channel, finalName);
+    if (tiedGames.length > 1) {
+        // Pick random game from tied games
+        const randomGame = tiedGames[Math.floor(Math.random() * tiedGames.length)];
+        const newName = randomGame.length > 90 ? randomGame.slice(0, 90) : randomGame;
+        await safeSetName(channel, newName);
+    } else {
+        // Clear winner
+        const newName = topGame.length > 90 ? topGame.slice(0, 90) : topGame;
+        await safeSetName(channel, newName);
     }
 }
 
