@@ -1,6 +1,7 @@
 const { ChannelType } = require('discord.js');
 const originalNames = new Map();
 const retryAfter = new Map();
+const lastRename = new Map();
 
 // ---------------- Helper ----------------
 async function safeSetName(channel, name) {
@@ -8,8 +9,16 @@ async function safeSetName(channel, name) {
 
     if (channel.name === name) return;
 
+    // cooldown: 30s between renames per channel
+    const now = Date.now();
+    const last = lastRename.get(channel.id) || 0;
+    if (now - last < 30 * 1000) {
+        return; // skip, still on cooldown
+    }
+
     try {
         await channel.setName(name);
+        lastRename.set(channel.id, now);
     } catch (err) {
         if (err.code === 429) { // Rate limit code Discord
             const retryMs = (err.data?.retry_after ?? 600) * 1000;
@@ -57,19 +66,20 @@ async function updateChannelName(channel) {
     const sortedGames = Object.entries(gameCounts).sort((a, b) => b[1] - a[1]);
     const [topGame, topCount] = sortedGames[0];
 
-    // Check if tie
+    // Check tie
     const tiedGames = sortedGames.filter(([_, count]) => count === topCount).map(([game]) => game);
 
+    let newName;
     if (tiedGames.length > 1) {
-        // Pick random game from tied games
-        const randomGame = tiedGames[Math.floor(Math.random() * tiedGames.length)];
-        const newName = randomGame.length > 90 ? randomGame.slice(0, 90) : randomGame;
-        await safeSetName(channel, newName);
+        // Pick random game from ties
+        newName = tiedGames[Math.floor(Math.random() * tiedGames.length)];
     } else {
-        // Clear winner
-        const newName = topGame.length > 90 ? topGame.slice(0, 90) : topGame;
-        await safeSetName(channel, newName);
+        newName = topGame;
     }
+
+    if (newName.length > 90) newName = newName.slice(0, 90);
+
+    await safeSetName(channel, newName);
 }
 
 // ---------------- Retry Interval ----------------
@@ -86,7 +96,7 @@ function startRetryInterval(client) {
                 retryAfter.delete(channelId);
             }
         });
-    }, 60 * 1000); // check every 1 min
+    }, 30 * 1000); // check every 30s
 }
 
 // ---------------- Utility ----------------
@@ -95,7 +105,8 @@ function setOriginalName(channelId, name) {
 }
 
 // ---------------- Polling ----------------
-function startPolling(client, interval = 5000) {
+// Keeps healing if Discord applied an old queued rename
+function startPolling(client, interval = 10000) {
     setInterval(() => {
         client.guilds.cache.forEach(guild => {
             guild.channels.cache
