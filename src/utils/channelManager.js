@@ -11,9 +11,10 @@ async function safeSetName(channel, name) {
     try {
         await channel.setName(name);
     } catch (err) {
-        if (err.code === 429) { // Rate limit
-            console.warn(`Rate limit hit for channel ${channel.name}, will retry in 10 min`);
-            retryAfter.set(channel.id, Date.now() + 10 * 60 * 1000);
+        if (err.code === 429) { // Rate limit code Discord
+            const retryMs = (err.data?.retry_after ?? 600) * 1000;
+            console.warn(`Rate limit hit for channel ${channel.name}, retrying in ${Math.round(retryMs / 1000)}s`);
+            retryAfter.set(channel.id, Date.now() + retryMs);
         } else if (err.code === 50013) { // Missing permissions
             console.error(`Missing permissions to rename channel ${channel.name}`);
         } else {
