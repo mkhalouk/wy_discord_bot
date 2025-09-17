@@ -71,8 +71,13 @@ async function updateChannelName(channel) {
 
     let newName;
     if (tiedGames.length > 1) {
-        // Pick random game from ties
-        newName = tiedGames[Math.floor(Math.random() * tiedGames.length)];
+        // Keep current name if it’s one of the tied games
+        if (tiedGames.includes(channel.name)) {
+            newName = channel.name;
+        } else {
+            // Otherwise pick a stable deterministic winner
+            newName = tiedGames.sort()[0];
+        }
     } else {
         newName = topGame;
     }
@@ -90,7 +95,8 @@ function startRetryInterval(client) {
             if (now >= time) {
                 const channel = client.channels.cache.get(channelId);
                 if (channel) {
-                    console.log(`Retrying rename for channel ${channel.name}`);
+                    console.log(`Retrying check for channel ${channel.name}`);
+                    // Instead of replaying old name then recompute latest state
                     updateChannelName(channel);
                 }
                 retryAfter.delete(channelId);
